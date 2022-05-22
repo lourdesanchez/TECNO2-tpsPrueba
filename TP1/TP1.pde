@@ -3,9 +3,18 @@ OscP5 osc;
 GestorSenial gestorAmp;
 GestorSenial gestorPitch;
 
+
+boolean haySonido = false;
+boolean antesHabiaSonido = false;
+
+
+boolean empezoElSonido = false;
+boolean terminoElSonido = false;
+
+
 boolean monitor = false;
 
-//float amortiguacion = 0.9;
+float amortiguacion = 0.9;
 
 float minPitch = 61;
 float maxPitch = 96; 
@@ -17,101 +26,100 @@ float maxAmp = 100;
 float amp = 0;
 float pitch = 0;
 
-boolean antesHabiaSonido = false;
+float umbralTiempo = 500;
+long marcaDeTiempo;
 
+PGraphics grafico;
 Trazos t;
 
 Paleta paleta;
-
-Interaccion i;
 
 void setup () {
   size (400, 600);
 
   osc = new OscP5(this, 12345);
 
-  gestorAmp = new GestorSenial (minAmp, maxAmp); //min y max de entrada q queremos evaluar
-  gestorPitch = new GestorSenial (minPitch, maxPitch);
+  gestorAmp = new GestorSenial (minAmp, maxAmp, amortiguacion); //min y max de entrada q queremos evaluar
+  gestorPitch = new GestorSenial (minPitch, maxPitch, amortiguacion);
 
   t = new Trazos();
-  i =  new Interaccion();
   paleta = new Paleta ("roma1.jpg");
   paleta = new Paleta ("roma2.jpg");
   paleta = new Paleta ("roma3.jpg");
   paleta = new Paleta ("roma4.jpg");
-  
+
+  grafico = createGraphics (width, height);
 }
 
 void draw () {
-
+  // background (0);
   gestorAmp.actualizar(amp);
   gestorPitch.actualizar(pitch);
-  
-  
 
-  //boolean haySonido  =  gestorAmp.filtradoNorm() > 0.2;
-  
+  haySonido  =  gestorAmp.filtradoNorm() > 0.1;
+
+  empezoElSonido = !antesHabiaSonido && haySonido;
+  terminoElSonido = antesHabiaSonido && !haySonido;
+
   /*--- aca lo que hice fue limitar el volumen y la altura (los numeros estan normalizados)*/
-  boolean agudoYalto = gestorAmp.filtradoNorm() > 0.4 && gestorPitch.filtradoNorm() > 0.1;
+  boolean agudoYalto = gestorAmp.filtradoNorm() > 0.3 && gestorPitch.filtradoNorm() > 0.1;
   boolean bajoYagudo = gestorAmp.filtradoNorm() > 0.1 && gestorAmp.filtradoNorm() < 0.4 && gestorPitch.filtradoNorm() > 0.1;
-  boolean altaYgrave = gestorAmp.filtradoNorm() > 0.4 && gestorPitch.filtradoNorm() < 0.1 ;
+  boolean altaYgrave = gestorAmp.filtradoNorm() > 0.3 && gestorPitch.filtradoNorm() < 0.1;
   boolean bajoYgrave = gestorAmp.filtradoNorm() > 0.1 && gestorAmp.filtradoNorm() < 0.3 ;
-  
-  boolean sonidoLargo  = gestorAmp.filtradoNorm() > 0.6 ;
-  //boolean empezoElSonido = haySonido && !antesHabiaSonido;
-  //boolean terminoElSonido = !haySonido && antesHabiaSonido;
 
-  /*  if (empezoElSonido) {
-   t.dibujar();
-   }*/
+  t.estadoObra();
 
-  /*---sonidos largos para trazos normales--- */
-  
-  /*if(estado.equals("inicio") && agudoYalto){
-     t.dibujar();
-    t.trazosNormalesP1();
-    
-  }*/
-  
-  
-  
-  if (agudoYalto) {
-    t.dibujar();
-    t.trazosNormalesP1();
-    t.actualizarT();
-  } 
-  if (bajoYgrave) {
-    t.dibujar();
-    t.trazosNormalesP2();
-     //t.actualizarT();
-    
-  } 
-  if (altaYgrave) {
-    t.dibujar();
-    t.trazosNormalesP3();
-    // t.actualizarT();
-  } 
-  if (bajoYagudo) {
-    t.dibujar();
-    t.trazosNormalesP4();
-    // t.actualizarT();
-  } 
-  if(sonidoLargo){
-    t.trazoLargo();
-    //t.actualizarT();
+  if (empezoElSonido) {
+    marcaDeTiempo = millis(); //cuanto tiempo desde que arranco el sonido
+    println ("sonido");
   }
 
+  /*---sonidos largos para trazos normales--- */
+  grafico.beginDraw(); 
+  
+  if (agudoYalto) {
+    //paleta.darColorPaletaUno();
+    t.trazos(paleta.darColorPaletaUno(), 220, 300 );
+    println ("agudo y alto");
+  } 
+  if (bajoYgrave) {
+    t.trazos(paleta.darColorPaletaDos(),220, 300);
+    //t.trazosNormalesP2();
+    println ("bajo y grave");
+  }
+  if (altaYgrave) {
+    t.trazos(paleta.darColorPaletaTres(),220, 300);
+    //t.trazosNormalesP3();
+    println ("alto y grave");
+  } 
+  if (bajoYagudo) {
+    t.trazos(paleta.darColorPaletaCuatro(),220, 300);
+    //t.trazosNormalesP4();
+    println ("bajo y agudo");
+  } 
+  grafico.endDraw();
 
+  // tint (255, 100);
 
+  image (grafico, 0, 0);
 
-
-
+  /*---sonidos cortos para trazos largos--- */
+  if (terminoElSonido) {/*&& !agudoYalto && !bajoYgrave && !altaYgrave && !bajoYagudo) {*/
+    long momentoActual = millis();
+    if ( momentoActual < marcaDeTiempo +  umbralTiempo) { // buscando sonidos cortos
+      translate (-100, -110);
+      t.trazos(paleta.darColorPaletaUno(), 100, 220 ); //le cambie el cancho y alto para simular los trazos largos así los tenemos todos dentro de una sola función("trazos")
+     // println ("trazo largo");
+    }
+  }
 
   if ( monitor ) {
     //muestra la señal en pantalla
-    gestorPitch.imprimir(100, 100 );
-    gestorAmp.imprimir(100, 250, 500, 100, false, true);
+    gestorAmp.imprimir( 100, 100, 400, 200);
+    gestorPitch.imprimir( 100, 350, 400, 200, false, true);
   }
+
+  antesHabiaSonido = haySonido;
 }
 
 void  oscEvent (OscMessage m) {
